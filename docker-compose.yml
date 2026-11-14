@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16
+    container_name: debate-db
+    environment:
+      POSTGRES_USER: debate
+      POSTGRES_PASSWORD: debate
+      POSTGRES_DB: debate
+    ports:
+      - "5432:5432"
+    volumes:
+      - debate_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U debate"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  debate_pgdata:
