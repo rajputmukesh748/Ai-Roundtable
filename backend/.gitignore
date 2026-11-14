@@ -1,1 +1,26 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+.env.*
+!*.example
+
+# Piper TTS downloaded models & audio files
 voices/
+*.wav
+*.mp3
+
+# Testing & caches
+.pytest_cache/
+.coverage
+.mypy_cache/
+.ruff_cache/
