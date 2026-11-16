@@ -131,8 +131,18 @@
     body { background: linear-gradient(135deg, #ffe9d6 0%, #fbf6ee 45%, #d8f5ec 100%); }
     .credit { position: fixed; right: 24px; bottom: 16px; }
   }
+  /* screenshots */
+  .shot { margin: 0; }
+  .shot img { display: block; width: 100%; max-height: 62vh; object-fit: contain; object-position: top; border-radius: 14px; border: 1px solid var(--line); box-shadow: var(--shadow); background: #fff; }
+  .shot figcaption { margin-top: 1.2vh; font-size: clamp(.75rem, 1.1vw, .95rem); color: var(--muted); line-height: 1.35; }
+  .shotsplit { grid-template-columns: 1fr 1.1fr; }
+  .shotsplit .shot img { max-height: 66vh; }
+  ol.steps-list { padding-left: 1.4em; display: grid; gap: 1.6vh; }
+  ol.steps-list li { font-size: clamp(.95rem, 1.6vw, 1.3rem); line-height: 1.35; }
+  .shots2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3vw; align-items: start; }
+  @media print { .shotsplit .shot img { max-height: 44vh !important; } .shotsplit { align-items: start; } }
   @media screen and (max-width: 800px) {
-    .g3, .g4, .split { grid-template-columns: 1fr; } .g2 { grid-template-columns: 1fr; }
+    .g3, .g4, .split, .shotsplit, .shots2 { grid-template-columns: 1fr; } .g2 { grid-template-columns: 1fr; }
     .flow { flex-direction: column; } .chat, .bars { max-width: 100%; } .arch { grid-template-columns: 1fr; gap: 12px; } .arrow { display: none; }
     .slide { overflow-y: auto; justify-content: flex-start; padding-top: 8vh; } .hint { display: none; }
   }
@@ -215,6 +225,22 @@
     </div>
   </section>
 
+  <!-- 3b how to create a debate (screenshot) -->
+  <section class="slide">
+    <div class="kicker">Create a debate</div>
+    <h2>Set it up in one screen</h2>
+    <div class="split shotsplit">
+      <ol class="steps-list">
+        <li><b>Connect</b> a model in the left card.</li>
+        <li>Type the <b>topic</b>.</li>
+        <li>Add <b>2 to 6 personas</b>: name, For or Against, gender.</li>
+        <li>Tick <b>Real user</b> on one persona to join in yourself.</li>
+        <li>Set the judge and the turns, then press <b>Start debate</b>.</li>
+      </ol>
+      <figure class="shot"><img src="screenshots/01-setup-form.png" alt="Setup form with three personas, one marked Real user"></figure>
+    </div>
+  </section>
+
   <!-- 4 real debate -->
   <section class="slide">
     <div class="kicker">The debate</div>
@@ -230,6 +256,35 @@
         <div class="msg for"><small>Alice · For</small>Working from home saves hours of travel every day.</div>
         <div class="msg against"><small>Bob · Against</small>You save time, but you lose team spirit and quick help.</div>
         <div class="msg for"><small>Maya · For</small>Chat tools keep teams close, and focus time goes up.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3c your turn screenshots -->
+  <section class="slide">
+    <div class="kicker">Your turn</div>
+    <h2>Tag with @. Stay respectful.</h2>
+    <div class="shots2">
+      <figure class="shot"><img src="screenshots/03-tag-with-at.png" alt="Typing @ shows the list of people to tag"><figcaption>1. Type <b>@</b> and pick who to tag. They answer your point.</figcaption></figure>
+      <figure class="shot"><img src="screenshots/04-reply-guardrail.png" alt="Warning shown when a reply has abusive language"><figcaption>2. Abusive or illegal text is blocked with a warning. Rephrase and send again.</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- 4b join + guardrails -->
+  <section class="slide">
+    <div class="kicker">Join in, stay respectful</div>
+    <h2>Be one of the debaters</h2>
+    <div class="split">
+      <ul class="tick">
+        <li>Tick <b>Real user</b> on one persona: zero or one per debate.</li>
+        <li>On your turn the chat pauses for your reply.</li>
+        <li>Type <b>@</b> to tag anyone, like a real chat. The tagged person answers your point.</li>
+        <li>Guardrails block abusive words, gaali, threats and illegal topics, with a clear warning.</li>
+      </ul>
+      <div class="chat">
+        <div class="msg for"><small>You (Mukesh) · For</small><b style="color:var(--orange)">@Bob</b> if remote work is so bad, why do teams ship faster?</div>
+        <div class="msg against"><small>Bob · Against</small>Speed is not the point. People lose the quick help they get in an office.</div>
+        <div class="msg for"><small>⚠ Warning</small>Please avoid abusive or offensive language. Rephrase and send again.</div>
       </div>
     </div>
   </section>

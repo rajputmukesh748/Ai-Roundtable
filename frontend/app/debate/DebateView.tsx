@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { API, WS, Msg, Result, Side } from "@/lib/api";
+import MentionInput, { renderMentions } from "@/components/MentionInput";
 
 
 // Pick the most natural-sounding English voices the device offers (neural/enhanced first, novelty voices excluded).
@@ -30,6 +31,10 @@ export default function DebateView() {
   const [result, setResult] = useState<Result | null>(null);
   const [status, setStatus] = useState("Connecting…");
   const [speakingIdx, setSpeakingIdx] = useState(-1);
+  const [names, setNames] = useState<string[]>([]);                       // everyone who can be @tagged
+  const [humanTurn, setHumanTurn] = useState<{ speaker: string } | null>(null); // set while the real user must reply
+  const [humanWarn, setHumanWarn] = useState<{ msg: string; id: number } | null>(null);
+  const humanReply = useRef<((text: string) => void) | null>(null);
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
   const stopAudioRef = useRef<(() => void) | null>(null);
@@ -85,7 +90,7 @@ export default function DebateView() {
     if (savedId) {
       fetch(`${API}/api/debates/${savedId}`)
         .then((r) => { if (!r.ok) throw new Error("not found"); return r.json(); })
-        .then((d) => { setTopic(d.topic); setMsgs(d.messages); setResult(d.result); setStatus(`Saved debate (${d.status})`); })
+        .then((d) => { setTopic(d.topic); setNames((d.agents ?? []).map((a: { name: string }) => a.name)); setMsgs(d.messages); setResult(d.result); setStatus(`Saved debate (${d.status})`); })
         .catch(() => setStatus("Could not load debate."));
       return;
     }
@@ -94,9 +99,10 @@ export default function DebateView() {
     if (!raw) { router.replace("/"); return; }
     const cfg = JSON.parse(raw);
     setTopic(cfg.topic);
+    setNames(cfg.agents.map((a: { name: string }) => a.name.trim()));
 
     // ---- playback: text streams in and is spoken sentence by sentence as it appears ----
-    type Live = { speaker: string; side: Side; text: string; done: boolean };
+    type Live = { speaker: string; side: Side; text: string; done: boolean; human?: boolean };
     const queue: Live[] = [];
     let curTurn: Live | null = null;
     let backendDone = false, judging = false, resultData: Result | null = null, errored = false, stop = false, total = 0, shown = 0;
@@ -157,6 +163,23 @@ export default function DebateView() {
 
     const play = async (t: Live) => {
       const idx = await new Promise<number>((res) => setMsgs((m) => { res(m.length); return [...m, { speaker: t.speaker, side: t.side, content: "" }]; }));
+      if (t.human) {
+        // the real user's turn: show the input, send their text, then show it instantly (no voice)
+        setStatus(`Your turn, ${t.speaker}…`);
+        setHumanTurn({ speaker: t.speaker });
+        // sending does not finish the turn: the server may reject the text (guardrails) and ask again
+        humanReply.current = (text) => ws.send(JSON.stringify({ type: "user_reply", content: text }));
+        while (!t.done && !stop && !errored) await sleep(80);
+        humanReply.current = null;
+        setHumanTurn(null);
+        setHumanWarn(null);
+        setStatus("Waiting for the others…");
+        while (!t.done && !stop && !errored) await sleep(60);
+        setMsgs((m) => m.map((x, j) => (j === idx ? { ...x, content: t.text } : x)));
+        shown++;
+        await sleep(900);
+        return;
+      }
       setSpeakingIdx(idx);
       setStatus(`${t.speaker} is speaking (${shown + 1}/${total || "?"})…`);
       let pos = 0, shownText = "";
@@ -214,21 +237,26 @@ export default function DebateView() {
     ws.onmessage = (e) => {
       const ev = JSON.parse(e.data);
             switch (ev.type) {
-        case "turn_start": { total = ev.total; curTurn = { speaker: ev.speaker, side: ev.side, text: "", done: false }; queue.push(curTurn); break; }
+        case "turn_start": { total = ev.total; curTurn = { speaker: ev.speaker, side: ev.side, text: "", done: false, human: !!ev.human }; queue.push(curTurn); break; }
         case "token": if (curTurn) curTurn.text += ev.text; break;
         case "turn_end": if (curTurn) { curTurn.text = ev.content; curTurn.done = true; } break;
+        case "user_warning": setHumanWarn({ msg: ev.message, id: Date.now() }); break;
         case "judging": judging = true; break;
         case "result": resultData = ev.data; backendDone = true; break;
         case "error": errored = true; setStatus(`Error: ${ev.message}`); break;
       }
     };
     ws.onerror = () => { errored = true; setStatus("Connection error. Is the backend running?"); };
+    ws.onclose = () => {
+      // the server closes normally after sending the result; anything else means the debate was cut short
+      if (!stop && !backendDone && !errored) { errored = true; setStatus("Error: connection to the backend was lost before the debate finished. Start a new debate."); }
+    };
     player();
 
-    return () => { stop = true; ws.close(); window.speechSynthesis?.cancel(); stopAudioRef.current?.(); };
+    return () => { stop = true; humanReply.current?.(""); ws.close(); window.speechSynthesis?.cancel(); stopAudioRef.current?.(); };
   }, [savedId, router]);
 
-  const live = status.includes("speaking") || status.includes("deliberating") || status.includes("thinking") || status.startsWith("Debate starting") || status === "Connecting…";
+  const live = status.includes("speaking") || !!humanTurn || status.includes("deliberating") || status.includes("thinking") || status.startsWith("Debate starting") || status === "Connecting…";
   const bad = status.startsWith("Error") || status.startsWith("Connection") || status.startsWith("Could not");
 
   return (
@@ -263,7 +291,7 @@ export default function DebateView() {
             <div className="bubble">
               <div className="speaker">{m.speaker}<small>{m.side}</small></div>
               <div className={i === speakingIdx && m.content ? "caret" : ""}>
-                {m.content || (i === speakingIdx ? <span className="typing" aria-label="typing"><i /><i /><i /></span> : "")}
+                {m.content ? renderMentions(m.content, names) : (i === speakingIdx ? <span className="typing" aria-label="typing"><i /><i /><i /></span> : "")}
               </div>
             </div>
           </div>
@@ -300,6 +328,10 @@ export default function DebateView() {
           </div>
           <p className="summary">{result.summary}</p>
         </section>
+      )}
+      {humanTurn && (
+        <MentionInput names={names.filter((n) => n !== humanTurn.speaker)} speaker={humanTurn.speaker} warning={humanWarn}
+          onSend={(t) => humanReply.current?.(t)} onSkip={() => humanReply.current?.("")} />
       )}
       <div ref={endRef} />
       {showJump && msgs.length > 0 && (

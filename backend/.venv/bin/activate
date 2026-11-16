@@ -37,7 +37,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="/Users/appinventiv/Downloads/Projects/Personal/Ai_Roundtable/backend/.venv"
+VIRTUAL_ENV="/Users/appinventiv/Downloads/Projects/Personal/Ai-Roundtable/backend/.venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

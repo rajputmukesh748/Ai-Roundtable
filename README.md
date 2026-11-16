@@ -11,8 +11,60 @@ Powered by Mukesh.
 
 1. Choose and connect a model on the home page: local (Ollama) or online (OpenAI, Gemini, other).
 2. Enter a topic, add 2-6 debaters (For or Against, Male or Female) and choose 5-50 turns per debater.
-3. Watch a live, spoken debate: random speakers, short plain replies, a pause between messages.
-4. Read the judge's verdict: winner, percentage, scorecard, reasons and key points.
+3. Optionally tick **Real user** on one persona to join the debate yourself (see below).
+4. Watch a live, spoken debate: random speakers, short plain replies, a pause between messages.
+5. Read the judge's verdict: winner, percentage, scorecard, reasons and key points.
+
+## Step-by-step: create a debate
+
+**Step 1. Connect a model.** In the "AI model" card on the home page, pick a provider, paste an API key if it needs one, press **Test connection**, choose a model and press **Save & connect**. The "Start a debate" form stays locked until this works.
+
+**Step 2. Fill in the setup form.** Type the topic, add 2-6 personas (name, For or Against, Male or Female), set the judge name and the turns per persona (5-50). Tick **Real user** on one persona if you want to take part yourself.
+
+![Setup form with three personas, one of them a real user](docs/screenshots/01-setup-form.png)
+
+**Step 3. Press Start debate.** The topic, names and prompts are checked first. If something is abusive or illegal, a red warning appears and the debate does not start. Fix the text and press Start again.
+
+![Warning shown when the topic has abusive language](docs/screenshots/05-topic-guardrail.png)
+
+**Step 4. Watch the chat.** Personas take turns, each message is typed out and spoken. If you ticked Real user, the chat pauses when it is your turn and a reply box appears.
+
+![Reply box shown on the real user's turn](docs/screenshots/02-your-turn.png)
+
+**Step 5. Tag people with @.** Type `@` in the reply box and pick someone from the list (arrow keys, then Enter or Tab). Press Enter to send, or **Pass** to skip your turn.
+
+![The @ list of people you can tag](docs/screenshots/03-tag-with-at.png)
+
+**Step 6. Keep it respectful.** If your reply contains abusive language, gaali, threats or illegal content, it is not sent. A warning appears and it is still your turn, so rephrase and send again.
+
+![Warning shown in the reply box](docs/screenshots/04-reply-guardrail.png)
+
+**Step 7. The tagged person answers.** Only the persona you tagged replies to your point. Then random turn-taking resumes.
+
+![Bob answers the message he was tagged in](docs/screenshots/06-tagged-reply.png)
+
+**Step 8. Read the verdict.** After the last message the judge shows the winner, a percentage, a scorecard, the reasons and each side's key points. Finished debates are saved and listed under "Latest debates" on the home page.
+
+![Verdict card](docs/screenshots/07-verdict.png)
+
+## Join the debate yourself (real user)
+
+Each persona has a **Real user** checkbox. Ticking it makes that persona you: only one persona per debate can be a real user (zero or one), and ticking another one moves the tick.
+
+- When that persona's turn comes, the debate pauses on a reply box. Press Enter to send, Shift+Enter for a new line, or **Pass** to skip (an unanswered turn is passed after 10 minutes).
+- Type `@` to tag anyone (a list of the other participants appears; use arrow keys and Enter/Tab). Tags are highlighted in the chat.
+- A tagged persona answers next, and only they reply to that point. If you tag several people they answer one after another in the order tagged; random turn-taking then resumes.
+- Your replies are judged like any other persona's. Your text appears instantly with no spoken voice.
+
+## Guardrails
+
+Abusive or offensive language (English and Hindi/Hinglish gaali), threats or self-harm language, and requests about clearly illegal activity are blocked.
+
+- **Before a debate:** the topic, persona names, custom prompts and judge name are checked when you press Start. A red warning is shown and the debate does not start.
+- **During a debate:** a real user's reply is checked by the backend. If it is flagged, a warning appears in the reply box and it stays your turn to rephrase.
+- **AI replies:** personas are instructed to stay respectful. Any flagged word that still slips through is masked as `****`.
+
+The rules live in `backend/guardrails.py` (word list and phrase patterns). The list is a fixed, hand-written one and can miss new slang; extend it there.
 
 The five latest debates are listed on the home page and reopen with their full verdict.
 
@@ -80,7 +132,7 @@ Male voices are Ryan and Alan; female voices are Amy and Lessac. The voice is ch
 ## Project structure
 
 ```
-backend/    FastAPI app: debate orchestration, judge, model providers (llm.py), TTS, database
+backend/    FastAPI app: debate orchestration, judge, model providers (llm.py), guardrails, TTS, database
 frontend/   Next.js app: home page, debate page, settings page
 docs/       Project overview and slide deck
 docker-compose.yml   PostgreSQL
@@ -99,7 +151,8 @@ The provider, model and API keys chosen in the app are saved in the database and
 
 ## API
 
-- `WS /ws/debate`: send the config; receives `started`, `turn_start`, `token`, `turn_end`, `judging`, `result`, `error`
+- `WS /ws/debate`: send the config (a persona may have `"is_human": true`); receives `started`, `turn_start` (with `human: true` on the real user's turn), `token`, `turn_end`, `user_warning`, `judging`, `result`, `error`. On their turn the client sends `{"type": "user_reply", "content": "..."}`
+- `POST /api/moderate`: pre-flight guardrail check of the debate config; returns `{ok, message}`
 - `GET /api/debates?limit=5`, `GET /api/debates/{id}`, `DELETE /api/debates/{id}`
 - `POST /api/models/list`: list the models a provider offers (uses the saved key if none is sent)
 - `GET/PUT /api/settings`: read/save the provider, URL, model and key (keys are never returned, only whether one is saved)
@@ -115,4 +168,5 @@ The judge scores each side 0-10 on argument, evidence, rebuttal and clarity. The
 
 - A small local model can repeat itself or judge imperfectly; a larger or online model gives better debates.
 - Online providers receive the debate text and may charge for usage. Local Ollama keeps everything on your computer.
+- Only one real-user persona is allowed per debate. Guardrails use a fixed word list, so they are a safety net, not a guarantee.
 - The debate length is "turns per debater", so total messages = turns x debaters.

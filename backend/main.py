@@ -10,6 +10,7 @@ from fastapi.responses import Response
 import tts
 
 import db
+import guardrails
 import llm
 from llm import LLMError, PROVIDERS, list_models, normalize_url
 from orchestrator import run_debate, run_judge
@@ -32,12 +33,28 @@ app.add_middleware(
 )
 
 
+def moderation_error(cfg: dict) -> str | None:
+    """Guardrails over every free-text field the user typed."""
+    fields = [("Topic", cfg.get("topic")), ("Judge name", cfg.get("judge_name"))]
+    for a in cfg.get("agents") or []:
+        if isinstance(a, dict):
+            fields += [("Persona name", a.get("name")), ("Custom prompt", a.get("custom_prompt"))]
+    for label, text in fields:
+        warn = guardrails.check(str(text or ""))
+        if warn:
+            return f"{label}: {warn}"
+    return None
+
+
 def validate(cfg: dict) -> str | None:
     """Return an error message or None. Never trust the client."""
     topic = (cfg.get("topic") or "").strip()
     agents = cfg.get("agents") or []
     if not topic:
         return "Topic is required"
+    bad = moderation_error(cfg)
+    if bad:
+        return bad
     if not isinstance(agents, list) or not (1 <= len(agents) <= 6):
         return "Max 6 debaters (and at least 1)"
     names = []
@@ -50,6 +67,8 @@ def validate(cfg: dict) -> str | None:
         if a.get("side") not in ("for", "against"):
             return "Side must be 'for' or 'against'"
         names.append(n.lower())
+    if sum(1 for a in agents if a.get("is_human")) > 1:
+        return "Only one persona can be a real user"
     if len(set(names)) != len(names):
         return "Persona names must be unique"
     sides = {a["side"] for a in agents}
@@ -99,6 +118,12 @@ def public_settings() -> dict:
 @app.get("/api/health")
 async def health():
     return {"ok": True, "provider": llm.state["provider"], "model": llm.active()[1]["model"]}
+
+
+@app.post("/api/moderate")
+async def moderate(cfg: dict):
+    """Pre-flight check so the home page can warn before a debate starts."""
+    return {"ok": (err := moderation_error(cfg)) is None, "message": err}
 
 
 @app.get("/api/tts/status")
@@ -200,7 +225,7 @@ async def get_debate(debate_id: int):
     msgs = await p.fetch(
         "SELECT speaker, side, content FROM messages WHERE debate_id=$1 ORDER BY seq", debate_id
     )
-    agents = await p.fetch("SELECT name, side FROM agents WHERE debate_id=$1 ORDER BY id", debate_id)
+    agents = await p.fetch("SELECT name, side, is_human FROM agents WHERE debate_id=$1 ORDER BY id", debate_id)
     return {
         "id": d["id"],
         "topic": d["topic"],
@@ -236,7 +261,7 @@ async def ws_debate(ws: WebSocket):
         rounds = int(cfg.get("rounds", 2))
         agents = [
             {"name": a["name"].strip(), "side": a["side"], "custom_prompt": (a.get("custom_prompt") or "").strip() or None,
-             "gender": a.get("gender", "male"), "voice": a.get("voice") or None}
+             "gender": a.get("gender", "male"), "voice": a.get("voice") or None, "is_human": bool(a.get("is_human"))}
             for a in cfg["agents"]
         ]
 
@@ -246,14 +271,26 @@ async def ws_debate(ws: WebSocket):
             topic, judge, rounds, llm.model_label(),
         )
         await p.executemany(
-            "INSERT INTO agents (debate_id, name, side, custom_prompt, gender, voice) VALUES ($1,$2,$3,$4,$5,$6)",
-            [(debate_id, a["name"], a["side"], a["custom_prompt"], a["gender"], a["voice"]) for a in agents],
+            "INSERT INTO agents (debate_id, name, side, custom_prompt, gender, voice, is_human) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+            [(debate_id, a["name"], a["side"], a["custom_prompt"], a["gender"], a["voice"], a["is_human"]) for a in agents],
         )
         await ws.send_json({"type": "started", "debate_id": debate_id})
 
         history: list[dict] = []
         saved = 0
-        async for ev in run_debate(topic, agents, rounds, history):
+        async def get_user_reply() -> str:
+            """Wait for the real user's message; ignore anything else the client sends meanwhile."""
+            while True:
+                msg = await ws.receive_json()
+                if isinstance(msg, dict) and msg.get("type") == "user_reply":
+                    text = str(msg.get("content") or "").strip()[:1000]
+                    warn = guardrails.check(text)
+                    if warn:  # reject and keep waiting for a clean reply
+                        await ws.send_json({"type": "user_warning", "message": warn})
+                        continue
+                    return text
+
+        async for ev in run_debate(topic, agents, rounds, history, get_user_reply):
             await ws.send_json(ev)
             if ev["type"] == "turn_end":
                 m = history[-1]

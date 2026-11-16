@@ -1,10 +1,13 @@
+import re
+
 SIMPLE_RULE = (
     "STYLE RULES: Use plain, everyday English that anyone can understand, like talking to a smart friend - "
     "simple but NOT childish. Short sentences. 1-2 sentences, MAX 30 words total. "
     "No fancy words, jargon, lists, emojis or preamble. "
     "Make ONE clear point with a realistic example, and always bring a NEW reason - never repeat earlier points. "
     "Do not invent stories about your mom or family, and do not talk about who is who in the debate. "
-    "Just answer what the last person said."
+    "Just answer what the last person said. "
+    "NEVER use profanity, slurs, insults, threats, or talk about illegal activity - stay respectful."
 )
 
 FOR_SYSTEM = (
@@ -61,7 +64,10 @@ def build_user_message(agent: dict, topic: str, history: list[dict]) -> str:
     if not recent:
         return f"{reminder}\n\nYou open the debate on: {topic}. Make one simple opening point in 1-2 short sentences."
     last = recent[-1]
-    if last["side"] != agent["side"]:
+    if re.search(r"@" + re.escape(agent["name"]) + r"(?!\w)", last["content"], re.I):
+        cue = (f"{last['speaker']} tagged you directly with @{agent['name']}. Reply ONLY to the specific point "
+               f"{last['speaker']} made to you in their last message. Do not bring up anyone else's points.")
+    elif last["side"] != agent["side"]:
         cue = f"{last['speaker']} (the other side) just spoke. Jump in and answer their point directly with a new reason."
     else:
         cue = f"Your teammate {last['speaker']} just spoke. Back them up briefly, then attack the other side."

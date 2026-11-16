@@ -253,3 +253,16 @@ main > .card:nth-of-type(1) { animation-delay: .1s; } main > .card:nth-of-type(2
 .prov span { font-size: var(--fs-sm); color: var(--muted); }
 .prov:hover { transform: translateY(-2px); border-color: oklch(30% 0.03 60 / 0.3); }
 .prov.on { border-color: var(--primary-strong); background: oklch(95% 0.05 55); box-shadow: 0 0 0 3px oklch(68% 0.19 50 / 0.2); }
+
+/* real-user persona + @mentions */
+.check { display: flex; gap: 10px; align-items: center; margin: 10px 0 0; font-size: var(--fs-sm); color: var(--muted); font-weight: 500; letter-spacing: 0; cursor: pointer; min-height: 32px; }
+.check input { width: 18px; height: 18px; min-height: 0; padding: 0; flex: none; accent-color: var(--primary); }
+.mention { color: var(--primary-strong); font-weight: 700; background: oklch(68% 0.19 50 / 0.12); border-radius: 6px; padding: 0 4px; }
+.compose { margin: 8px 0 24px; border-color: var(--primary); }
+.compose-head { margin-bottom: 8px; font-size: var(--fs-sm); color: var(--muted); }
+.compose-head kbd { font: inherit; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--field); }
+.compose-box { position: relative; }
+.compose-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+.mention-list { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 30; margin: 0; padding: 6px; list-style: none; min-width: 200px; max-height: 220px; overflow: auto; background: var(--surface-solid); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+.mention-list li { padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.mention-list li.on, .mention-list li:hover { background: oklch(68% 0.19 50 / 0.15); color: var(--primary-strong); }

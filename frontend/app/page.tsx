@@ -48,10 +48,15 @@ export default function Home() {
   const update = (i: number, patch: Partial<Persona>) =>
     setAgents((a) => a.map((p, j) => (j === i ? { ...p, ...patch } : p)));
 
-  const start = () => {
+  const start = async () => {
     const cfg: Config = { topic, judge_name: judge, rounds, agents: assignVoices(agents) };
     const err = validateConfig(cfg);
     if (err) return setError(err);
+    try { // guardrails: no abusive, threatening or illegal content
+      const r = await fetch(`${API}/api/moderate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cfg) });
+      const m = await r.json();
+      if (!m.ok) return setError(`⚠ ${m.message}`);
+    } catch { return setError("Could not reach the backend to check your text. Is it running?"); }
     setError("");
     sessionStorage.setItem("debateConfig", JSON.stringify(cfg));
     router.push("/debate");
@@ -136,10 +141,17 @@ export default function Home() {
                     onClick={() => setGender(i, "female")}>♀ Female</button>
                 </div>
               </div>
+              <label className="check">
+                <input type="checkbox" checked={!!a.is_human}
+                  onChange={(e) => setAgents((list) => list.map((p, j) => ({ ...p, is_human: j === i ? e.target.checked : false })))} />
+                <span>Real user — I&apos;ll type this persona&apos;s replies (only one per debate)</span>
+              </label>
+              {!a.is_human && (
               <button type="button" className="link" onClick={() => setOpen((o) => ({ ...o, [i]: !o[i] }))}>
                 {open[i] ? "− Hide custom prompt" : "+ Custom prompt (optional)"}
               </button>
-              {open[i] && (
+              )}
+              {open[i] && !a.is_human && (
                 <textarea rows={2} value={a.custom_prompt} aria-label="Custom system prompt"
                   placeholder="Describe this persona's personality or style…"
                   onChange={(e) => update(i, { custom_prompt: e.target.value })} />
